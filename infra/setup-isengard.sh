@@ -14,6 +14,7 @@ BASE=/var/lib/newsbrief
 RUN_AS=(sudo -u newsbrief)
 
 phase1() {
+  apt-get update -qq
   apt-get install -y --no-install-recommends git python3-venv
 
   id newsbrief &>/dev/null || useradd --system --create-home \
@@ -27,8 +28,12 @@ phase1() {
   fi
   "${RUN_AS[@]}" bash -c "ssh-keyscan github.com 2>/dev/null > $BASE/.ssh/known_hosts"
 
+  # Offentlig nøkkel er ikke hemmelig — legges lesbart i /tmp så den kan
+  # hentes over ssh uten root (registreres i GitHub fra atlantis).
+  install -m 644 "$BASE/.ssh/id_ed25519.pub" /tmp/newsbrief-deploy-key.pub
+
   echo
-  echo "=== DEPLOY-NØKKEL (registreres i repoet fra atlantis) ==="
+  echo "=== DEPLOY-NØKKEL (også i /tmp/newsbrief-deploy-key.pub) ==="
   cat "$BASE/.ssh/id_ed25519.pub"
   echo "=== Kjør deretter: sudo bash setup-isengard.sh phase2 ==="
 }
