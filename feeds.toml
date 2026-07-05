@@ -14,7 +14,7 @@
 
 [[feeds]]
 name = "NRK toppsaker"
-url = "https://www.nrk.no/toppsaker.rss"
+url = "https://www.nrk.no/finnes-ikke-akseptansetest.rss"
 
 [[feeds]]
 name = "NRK siste nytt"
