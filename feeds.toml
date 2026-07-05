@@ -7,6 +7,7 @@
 #   url          — feed-URL
 #   max          — valgfritt, maks saker på siden (default 25)
 #   strip_suffix — valgfritt, fjernes fra slutten av titler
+#   descriptions — valgfritt, false = aldri ingress for denne kilden
 #
 # Alle URL-er verifisert fungerende fra hjemme-IP 2026-07-05.
 
@@ -51,6 +52,7 @@ name = "Finansavisen (via Google News)"
 url = "https://news.google.com/rss/search?q=site:finansavisen.no&hl=no&gl=NO&ceid=NO:no"
 strip_suffix = " - Finansavisen"
 max = 15
+descriptions = false  # Google News-sammendrag er bare lenke-HTML
 
 # ─── Internasjonale ───────────────────────────────────────────────────
 

@@ -5,8 +5,10 @@ HTML-side til GitHub Pages, som Claude Chat leser til den daglige
 nyhetsbriefingen: **https://zedd80.github.io/nyhetsbrief/**
 
 Siden er designet for LLM-lesing: ingen JavaScript, tidsstempler i
-klartekst (Europe/Oslo), eksplisitt feilstatus øverst, kun titler +
-lenker (aldri brødtekst), maks ~200 KB.
+klartekst (Europe/Oslo), eksplisitt feilstatus øverst, titler + lenker +
+kort ingress fra feedens eget sammendragsfelt (maks ~40 ord; aldri
+artikkelkropp — bevisst opphavsrettsvalg), maks ~200 KB. Blir siden for
+stor, kuttes antall saker per kilde før ingressene ofres.
 
 ## Drift (isengard)
 

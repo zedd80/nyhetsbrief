@@ -10,6 +10,7 @@ import argparse
 import html
 import json
 import os
+import re
 import socket
 import sys
 import time
@@ -27,6 +28,27 @@ DEFAULT_MAX_ITEMS = 25
 SIZE_BUDGET = 200_000  # bytes
 MAX_CACHED_ITEMS = 200  # per feed, begrenser state-fila
 FETCH_TIMEOUT = 25  # sekunder
+DESC_MAX_WORDS = 40
+DESC_MAX_CHARS = 280  # ordgrense biter ikke på språk uten mellomrom (NHK)
+
+TAG_RE = re.compile(r"<[^>]+>")
+WS_RE = re.compile(r"\s+")
+
+
+def clean_summary(raw: str, title: str) -> str:
+    """Feedens eget sammendrag (ingress) — HTML strippet og trunkert.
+    Kun feed-innhold, aldri artikkelkropp (jf. opphavsrettsvalget i spek)."""
+    if not raw:
+        return ""
+    text = WS_RE.sub(" ", html.unescape(TAG_RE.sub(" ", raw))).strip()
+    if text.casefold() == title.casefold():  # bare tittelen om igjen
+        return ""
+    words = text.split()
+    if len(words) > DESC_MAX_WORDS:
+        text = " ".join(words[:DESC_MAX_WORDS]) + " …"
+    if len(text) > DESC_MAX_CHARS:
+        text = text[:DESC_MAX_CHARS].rstrip() + " …"
+    return text
 
 
 def parse_args():
@@ -99,7 +121,10 @@ def fetch_feed(cfg: dict, st: dict, now_utc: datetime):
         if suffix and title.endswith(suffix):
             title = title[: -len(suffix)].rstrip(" -–")
         ts = entry_timestamp(e, cached_ts, now_utc)
-        items.append({"title": title, "link": link,
+        desc = ""
+        if cfg.get("descriptions", True):
+            desc = clean_summary(e.get("summary", ""), title)
+        items.append({"title": title, "link": link, "desc": desc,
                       "ts": ts.astimezone(timezone.utc).isoformat()})
 
     # Slå sammen med cache: utvider 48-timersvinduet utover feedens eget
@@ -117,7 +142,8 @@ def fmt_oslo(ts_utc_iso: str) -> str:
     return datetime.fromisoformat(ts_utc_iso).astimezone(OSLO).isoformat(timespec="minutes")
 
 
-def render(feed_cfgs: list, state: dict, now_oslo: datetime, global_cap) -> str:
+def render(feed_cfgs: list, state: dict, now_oslo: datetime, global_cap,
+           with_desc: bool = True) -> str:
     esc = html.escape
     cutoff = (now_oslo - timedelta(hours=WINDOW_HOURS)).astimezone(timezone.utc).isoformat()
 
@@ -147,10 +173,13 @@ def render(feed_cfgs: list, state: dict, now_oslo: datetime, global_cap) -> str:
         lines = [f"<h2>{header} — {len(items)} saker siste {WINDOW_HOURS} t</h2>", "<ul>"]
         for it in items:
             url = esc(it["link"], quote=True)
-            lines.append(
+            line = (
                 f'<li>[{esc(name)}] {fmt_oslo(it["ts"])} — {esc(it["title"])} — '
-                f'<a href="{url}">{url}</a></li>'
+                f'<a href="{url}">{url}</a>'
             )
+            if with_desc and it.get("desc"):
+                line += f'<br>↳ {esc(it["desc"])}'
+            lines.append(line + "</li>")
         lines.append("</ul>")
         sections.append("\n".join(lines))
 
@@ -170,8 +199,9 @@ def render(feed_cfgs: list, state: dict, now_oslo: datetime, global_cap) -> str:
 <h1>Nyhetsbrief</h1>
 <p>Generert: {now_oslo.isoformat(timespec="seconds")} (Europe/Oslo)</p>
 {status_html}
-<p>Format per sak: [KILDE] ISO-tidsstempel — Tittel — URL. Kun saker fra
-siste {WINDOW_HOURS} timer. Kilder med ⚠ over feilet ved siste henting.</p>
+<p>Format per sak: [KILDE] ISO-tidsstempel — Tittel — URL, eventuelt
+etterfulgt av «↳ ingress» (feedens eget sammendrag). Kun saker fra siste
+{WINDOW_HOURS} timer. Kilder med ⚠ over feilet ved siste henting.</p>
 {chr(10).join(sections)}
 </body>
 </html>
@@ -205,13 +235,14 @@ def main() -> int:
             print(f"FEIL {cfg['name']}: {msg}")
 
     # Krymp per-kilde-tak til siden er under budsjett (LLM-fetchere har
-    # størrelsesgrenser).
-    for cap in (None, 15, 10, 5):
-        page = render(feed_cfgs, state, now_oslo, cap)
+    # størrelsesgrenser). Antall saker kuttes før ingresser droppes.
+    for cap, with_desc in ((None, True), (15, True), (10, True), (5, True),
+                           (10, False), (5, False)):
+        page = render(feed_cfgs, state, now_oslo, cap, with_desc)
         size = len(page.encode())
         if size <= SIZE_BUDGET:
             break
-    print(f"Side: {size} bytes (tak: {cap or 'per-feed'})")
+    print(f"Side: {size} bytes (tak: {cap or 'per-feed'}, ingress: {with_desc})")
 
     save_state(args.state, state)
     args.out.parent.mkdir(parents=True, exist_ok=True)
