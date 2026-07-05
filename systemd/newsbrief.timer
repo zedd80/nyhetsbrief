@@ -1,0 +1,12 @@
+[Unit]
+Description=Nyhetsbrief hvert 30. min (05-23), ellers hver time
+
+[Timer]
+OnCalendar=*-*-* 05..23:00,30:00
+OnCalendar=*-*-* 00..04:00:00
+# Ta igjen kjøringer tapt til 07:15-rebooten (unattended-upgrades)
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

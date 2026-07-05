@@ -1,0 +1,21 @@
+[Unit]
+Description=Nyhetsbrief: generer og publiser nyhetsside for Claude
+Documentation=https://github.com/zedd80/nyhetsbrief
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=newsbrief
+Group=newsbrief
+WorkingDirectory=/var/lib/newsbrief
+ExecStart=/var/lib/newsbrief/app/run.sh
+Nice=10
+TimeoutStartSec=15min
+
+# Herding: jobben trenger bare å skrive i egen hjemmekatalog
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/newsbrief
