@@ -10,6 +10,14 @@ kort ingress fra feedens eget sammendragsfelt (maks ~40 ord; aldri
 artikkelkropp — bevisst opphavsrettsvalg), maks ~200 KB. Blir siden for
 stor, kuttes antall saker per kilde før ingressene ofres.
 
+**Cache-omgåelse:** Claude Chats hente-verktøy cacher per URL-sti (query
+strippes, TTL > 18 t), så index.html kan serveres døgngammel. Derfor skrives
+også en datert kopi per dag (`YYYY-MM-DD.html`, Europe/Oslo) og en liten
+pekerside `dagens.html` med lenker for i går t.o.m. +7 dager. Claude Chat
+henter pekersiden (ufarlig om cachet — dagens lenke står der uansett) og
+deretter dagens daterte URL, som aldri kan være cachet. Daterte filer eldre
+enn 10 dager slettes automatisk.
+
 ## Drift (isengard)
 
 - **Legge til/fjerne kilde:** rediger `feeds.toml` (GitHubs web-UI eller be

@@ -30,9 +30,12 @@ MAX_CACHED_ITEMS = 200  # per feed, begrenser state-fila
 FETCH_TIMEOUT = 25  # sekunder
 DESC_MAX_WORDS = 40
 DESC_MAX_CHARS = 280  # ordgrense biter ikke på språk uten mellomrom (NHK)
+BASE_URL = "https://zedd80.github.io/nyhetsbrief/"
+DATED_KEEP_DAYS = 10
 
 TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"\s+")
+DATED_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.html$")
 
 
 def clean_summary(raw: str, title: str) -> str:
@@ -208,6 +211,56 @@ etterfulgt av «↳ ingress» (feedens eget sammendrag). Kun saker fra siste
 """
 
 
+def write_dated_copies(out_dir: Path, page: str, now_oslo: datetime) -> None:
+    """Datert kopi av siden + pekerside (dagens.html), mot fetch-cache.
+
+    Claude Chats hente-verktøy cacher per normalisert URL-sti (query
+    strippes, TTL > 18 t), så index.html kan serveres døgngammel. Dagens
+    daterte URL har aldri vært hentet før og kan derfor ikke være cachet.
+    Pekersiden lister lenker for i går t.o.m. +7 dager — filnavnene er
+    deterministiske, så en inntil en uke gammel cachet kopi av pekersiden
+    inneholder fortsatt dagens gyldige lenke.
+    """
+    today = now_oslo.date()
+    dated = out_dir / f"{today.isoformat()}.html"
+    tmp = dated.with_suffix(".tmp")
+    tmp.write_text(page)
+    os.replace(tmp, dated)
+
+    links = []
+    for offset in range(-1, 8):
+        d = (today + timedelta(days=offset)).isoformat()
+        links.append(f'<li>{d}: <a href="{BASE_URL}{d}.html">{BASE_URL}{d}.html</a></li>')
+    pointer = f"""<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Nyhetsbrief — daterte utgaver</title>
+</head>
+<body>
+<h1>Nyhetsbrief — daterte utgaver</h1>
+<p>Hent utgaven for dagens dato (Europe/Oslo) — den oppdateres hvert 30.
+minutt gjennom dagen. Bruk den daterte URL-en i stedet for index.html for å
+omgå cache i hente-verktøy. Denne pekersiden kan trygt være en cachet kopi:
+lenkene under dekker en uke fram i tid og er gyldige uansett. Filer for
+framtidige datoer finnes først fra og med sin egen dato.</p>
+<ul>
+{chr(10).join(links)}
+</ul>
+</body>
+</html>
+"""
+    tmp = out_dir / "dagens.tmp"
+    tmp.write_text(pointer)
+    os.replace(tmp, out_dir / "dagens.html")
+
+    cutoff = (today - timedelta(days=DATED_KEEP_DAYS)).isoformat()
+    for f in out_dir.iterdir():
+        if DATED_RE.match(f.name) and f.name[:-5] < cutoff:
+            f.unlink()
+
+
 def main() -> int:
     args = parse_args()
     socket.setdefaulttimeout(FETCH_TIMEOUT)
@@ -249,6 +302,7 @@ def main() -> int:
     tmp = args.out.with_suffix(".tmp")
     tmp.write_text(page)
     os.replace(tmp, args.out)
+    write_dated_copies(args.out.parent, page, now_oslo)
     return 0
 
 
