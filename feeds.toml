@@ -9,41 +9,119 @@
 #   strip_suffix — valgfritt, fjernes fra slutten av titler
 #   descriptions — valgfritt, false = aldri ingress for denne kilden
 #
-# Alle URL-er verifisert fungerende fra hjemme-IP 2026-07-05.
+# Nivå-inndeling (2026-07-22): primær max=20, sekundær max=10, nisje max=5.
+# Rekkefølgen speiler nivåene — viktigst øverst, siden LLM-fetchere
+# trunkerer store sider nedenfra. Krympelogikken i generate.py bruker
+# min(feedens max, globalt tak).
+#
+# Alle URL-er verifisert fungerende fra hjemme-IP 2026-07-05 (nye kilder
+# 2026-07-22).
 
-# ─── Norske ───────────────────────────────────────────────────────────
+# ─── Primær (max 20) ──────────────────────────────────────────────────
 
 [[feeds]]
 name = "NRK toppsaker"
 url = "https://www.nrk.no/toppsaker.rss"
+max = 20
 
 [[feeds]]
 name = "NRK siste nytt"
 url = "https://www.nrk.no/nyheter/siste.rss"
+max = 20
 
 [[feeds]]
 name = "VG"
 url = "https://www.vg.no/rss/feed"
+max = 20
 
 [[feeds]]
-name = "E24"
-url = "https://e24.no/rss"
+name = "BBC World"
+url = "https://feeds.bbci.co.uk/news/world/rss.xml"
+max = 20
+
+# CNNs RSS er død (siste sak april 2023) — erstattet med Guardian + NYT.
+[[feeds]]
+name = "The Guardian World"
+url = "https://www.theguardian.com/world/rss"
+max = 20
+
+[[feeds]]
+name = "New York Times World"
+url = "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+max = 20
+
+# AP la ned offentlig RSS (apnews.com/index.rss krever betalt avtale,
+# verifisert 2026-07-22) — hentes via Google News-proxy som Finansavisen.
+# Wire-bredde (~100 saker/døgn), men kun titler; AP-titler er heldigvis
+# hele, faktatunge setninger.
+[[feeds]]
+name = "AP (via Google News)"
+url = "https://news.google.com/rss/search?q=site:apnews.com%20when:1d&hl=en-US&gl=US&ceid=US:en"
+strip_suffix = " - AP News"
+max = 20
+descriptions = false  # Google News-sammendrag er bare lenke-HTML
+
+# ─── Sekundær (max 10) ────────────────────────────────────────────────
 
 [[feeds]]
 name = "Aftenposten"
 url = "https://www.aftenposten.no/rss"
+max = 10
 
 [[feeds]]
-name = "Nettavisen"
-url = "https://www.nettavisen.no/service/rich-rss"
+name = "E24"
+url = "https://e24.no/rss"
+max = 10
+
+# Merk: /feed/ og /rss/ gir 404 — det er /feed/rss/ som virker.
+[[feeds]]
+name = "Kyiv Independent"
+url = "https://kyivindependent.com/feed/rss/"
+max = 10
+
+# Høyre-motvekt i kvalitetssjiktet (mot Guardian/NYT); åpen feed med
+# ekte ingresser, verifisert 2026-07-22.
+[[feeds]]
+name = "Wall Street Journal World"
+url = "https://feeds.content.dowjones.io/public/rss/RSSWorldNews"
+max = 10
+
+[[feeds]]
+name = "Financial Times"
+url = "https://www.ft.com/rss/home"
+max = 10
+
+[[feeds]]
+name = "Al Jazeera"
+url = "https://www.aljazeera.com/xml/rss/all.xml"
+max = 10
+
+[[feeds]]
+name = "France 24"
+url = "https://www.france24.com/en/rss"
+max = 10
+
+[[feeds]]
+name = "Deutsche Welle"
+url = "https://rss.dw.com/rdf/rss-en-world"
+max = 10
+
+# ─── Nisje/lokal (max 5) ──────────────────────────────────────────────
 
 [[feeds]]
 name = "Dagens Næringsliv"
 url = "https://services.dn.no/api/feed/rss/"
+max = 5
+
+[[feeds]]
+name = "Nettavisen"
+url = "https://www.nettavisen.no/service/rich-rss"
+max = 5
 
 [[feeds]]
 name = "Nordstrands Blad"
 url = "https://www.noblad.no/service/rich-rss"
+max = 5
 
 # Finansavisen har ingen åpen RSS (verifisert 2026-07-05) — hentes via
 # Google News-proxy. Lenkene går via news.google.com.
@@ -51,47 +129,23 @@ url = "https://www.noblad.no/service/rich-rss"
 name = "Finansavisen (via Google News)"
 url = "https://news.google.com/rss/search?q=site:finansavisen.no&hl=no&gl=NO&ceid=NO:no"
 strip_suffix = " - Finansavisen"
-max = 15
+max = 5
 descriptions = false  # Google News-sammendrag er bare lenke-HTML
-
-# ─── Internasjonale ───────────────────────────────────────────────────
-
-[[feeds]]
-name = "BBC World"
-url = "https://feeds.bbci.co.uk/news/world/rss.xml"
-
-# CNNs RSS er død (siste sak april 2023) — erstattet med Guardian + NYT.
-[[feeds]]
-name = "The Guardian World"
-url = "https://www.theguardian.com/world/rss"
-
-[[feeds]]
-name = "New York Times World"
-url = "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
-
-[[feeds]]
-name = "Fox News World"
-url = "https://moxie.foxnews.com/google-publisher/world.xml"
-
-[[feeds]]
-name = "Al Jazeera"
-url = "https://www.aljazeera.com/xml/rss/all.xml"
-
-[[feeds]]
-name = "Deutsche Welle"
-url = "https://rss.dw.com/rdf/rss-en-world"
 
 [[feeds]]
 name = "Die Welt"
 url = "https://www.welt.de/feeds/latest.rss"
-
-[[feeds]]
-name = "France 24"
-url = "https://www.france24.com/en/rss"
+max = 5
 
 [[feeds]]
 name = "South China Morning Post"
 url = "https://www.scmp.com/rss/91/feed"
+max = 5
+
+[[feeds]]
+name = "Fox News World"
+url = "https://moxie.foxnews.com/google-publisher/world.xml"
+max = 5
 
 # NHK Worlds engelske feed er død (timeout, verifisert 2026-07-05).
 # Japansk utenriksfeed brukes i stedet — konsumenten er en LLM som
@@ -99,7 +153,4 @@ url = "https://www.scmp.com/rss/91/feed"
 [[feeds]]
 name = "NHK (japansk, utenriks)"
 url = "https://www3.nhk.or.jp/rss/news/cat6.xml"
-
-[[feeds]]
-name = "Financial Times"
-url = "https://www.ft.com/rss/home"
+max = 5
