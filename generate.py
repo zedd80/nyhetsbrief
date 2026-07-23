@@ -7,6 +7,7 @@ derfor ingen JavaScript, tidsstempler i klartekst og eksplisitt feilstatus
 """
 
 import argparse
+import difflib
 import html
 import json
 import os
@@ -24,7 +25,9 @@ import feedparser
 USER_AGENT = "nyhetsbrief/1.0 (+https://github.com/zedd80/nyhetsbrief; pmabell@proton.me)"
 OSLO = ZoneInfo("Europe/Oslo")
 WINDOW_HOURS = 48
+FRESH_HOURS = 24  # eldre saker prefikses [48h] — briefen bruker 24t-vindu
 DEFAULT_MAX_ITEMS = 25
+TITLE_SIM = 0.9  # tittel-likhet som regnes som duplikat innenfor én kilde
 SIZE_BUDGET = 200_000  # bytes
 MAX_CACHED_ITEMS = 200  # per feed, begrenser state-fila
 FETCH_TIMEOUT = 25  # sekunder
@@ -36,6 +39,8 @@ DATED_KEEP_DAYS = 10
 TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"\s+")
 DATED_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.html$")
+NRK_ID_RE = re.compile(r"1\.\d{7,}")
+NON_WORD_RE = re.compile(r"[\W\d_]+")
 
 
 def clean_summary(raw: str, title: str) -> str:
@@ -52,6 +57,74 @@ def clean_summary(raw: str, title: str) -> str:
     if len(text) > DESC_MAX_CHARS:
         text = text[:DESC_MAX_CHARS].rstrip() + " …"
     return text
+
+
+def url_key(link: str) -> tuple:
+    """Dedup-nøkkel for en lenke. Query og fragment strippes helt (utm_*,
+    at_medium o.l.); NRK-artikler identifiseres på den stabile IDen
+    «1.NNNNNNNN» alene — samme sak republiseres under ulike seksjonsstier
+    (/nyheter/, /norge/, /buskerud/, …)."""
+    low = link.casefold()
+    if "nrk.no" in low:
+        m = NRK_ID_RE.search(low)
+        if m:
+            return ("nrk", m.group(0))
+    return ("url", low.split("#")[0].split("?")[0].rstrip("/"))
+
+
+def norm_title(title: str) -> str:
+    """Tegnsetting og siffer fjernes («12.000» == «12 000»), whitespace
+    kollapses — grunnlag for tittel-likhet innenfor én kilde."""
+    return WS_RE.sub(" ", NON_WORD_RE.sub(" ", title.casefold())).strip()
+
+
+def dedupe_source(items: list) -> list:
+    """Duplikater innenfor én kilde: samme URL-nøkkel eller ≥ TITLE_SIM
+    tittel-likhet. items er nyeste-først, så første forekomst (nyeste
+    tidsstempel) beholdes; ingress arves fra eldre variant ved behov."""
+    out, key_idx, titles = [], {}, []
+    for it in items:
+        key = url_key(it["link"])
+        idx = key_idx.get(key)
+        nt = norm_title(it["title"])
+        if idx is None:
+            for i, prev in enumerate(titles):
+                if difflib.SequenceMatcher(None, nt, prev).ratio() >= TITLE_SIM:
+                    idx = i
+                    break
+        if idx is not None:
+            if not out[idx].get("desc") and it.get("desc"):
+                out[idx]["desc"] = it["desc"]
+            continue
+        key_idx[key] = len(out)
+        titles.append(nt)
+        out.append(dict(it))
+    return out
+
+
+def build_views(feed_cfgs: list, state: dict, now_oslo: datetime) -> dict:
+    """Vindusfiltrert, deduplisert sakliste per kilde (ubegrenset — taket
+    settes i render). Dedup på tvers av kilder gjøres KUN på NRK-ID:
+    toppsaker og siste nytt er samme redaksjon, og første kilde i
+    konfig-rekkefølgen vinner (toppsaker — salienssignalet bevares).
+    Ellers aldri på tvers: at uavhengige kilder kjører samme sak er et
+    signal konsumenten vil se."""
+    cutoff = (now_oslo - timedelta(hours=WINDOW_HOURS)).astimezone(timezone.utc).isoformat()
+    views = {}
+    seen_nrk = set()
+    for cfg in feed_cfgs:
+        items = [it for it in state.get(cfg["name"], {}).get("items", [])
+                 if it["ts"] >= cutoff]
+        deduped = []
+        for it in dedupe_source(items):
+            key = url_key(it["link"])
+            if key[0] == "nrk":
+                if key[1] in seen_nrk:
+                    continue
+                seen_nrk.add(key[1])
+            deduped.append(it)
+        views[cfg["name"]] = deduped
+    return views
 
 
 def parse_args():
@@ -145,10 +218,10 @@ def fmt_oslo(ts_utc_iso: str) -> str:
     return datetime.fromisoformat(ts_utc_iso).astimezone(OSLO).isoformat(timespec="minutes")
 
 
-def render(feed_cfgs: list, state: dict, now_oslo: datetime, global_cap,
-           with_desc: bool = True) -> str:
+def render(feed_cfgs: list, state: dict, views: dict, now_oslo: datetime,
+           global_cap, with_desc: bool = True) -> str:
     esc = html.escape
-    cutoff = (now_oslo - timedelta(hours=WINDOW_HOURS)).astimezone(timezone.utc).isoformat()
+    fresh_cutoff = (now_oslo - timedelta(hours=FRESH_HOURS)).astimezone(timezone.utc).isoformat()
 
     status_lines = []
     sections = []
@@ -170,14 +243,19 @@ def render(feed_cfgs: list, state: dict, now_oslo: datetime, global_cap,
         cap = cfg.get("max", DEFAULT_MAX_ITEMS)
         if global_cap:
             cap = min(cap, global_cap)
-        items = [it for it in st.get("items", []) if it["ts"] >= cutoff][:cap]
+        items = views.get(name, [])[:cap]
 
-        header = esc(name) + (" ⚠ (viser sist vellykkede henting)" if failed else "")
+        header = esc(name)
+        if failed:
+            header += " ⚠ (viser sist vellykkede henting)"
+        elif not items:
+            header += " ∅"
         lines = [f"<h2>{header} — {len(items)} saker siste {WINDOW_HOURS} t</h2>", "<ul>"]
         for it in items:
             url = esc(it["link"], quote=True)
+            age = "[48h] " if it["ts"] < fresh_cutoff else ""
             line = (
-                f'<li>[{esc(name)}] {fmt_oslo(it["ts"])} — {esc(it["title"])} — '
+                f'<li>{age}[{esc(name)}] {fmt_oslo(it["ts"])} — {esc(it["title"])} — '
                 f'<a href="{url}">{url}</a>'
             )
             if with_desc and it.get("desc"):
@@ -204,7 +282,10 @@ def render(feed_cfgs: list, state: dict, now_oslo: datetime, global_cap,
 {status_html}
 <p>Format per sak: [KILDE] ISO-tidsstempel — Tittel — URL, eventuelt
 etterfulgt av «↳ ingress» (feedens eget sammendrag). Kun saker fra siste
-{WINDOW_HOURS} timer. Kilder med ⚠ over feilet ved siste henting.</p>
+{WINDOW_HOURS} timer; saker eldre enn {FRESH_HOURS} timer er prefikset
+[48h]. Kilder med ⚠ over feilet ved siste henting. ∅ betyr vellykket
+henting, men ingen saker i tidsvinduet — normalt for lavvolum-kilder
+(Rett24, NVE, Nordstrands Blad).</p>
 {chr(10).join(sections)}
 </body>
 </html>
@@ -287,11 +368,13 @@ def main() -> int:
             st["last_error_ts"] = now_iso
             print(f"FEIL {cfg['name']}: {msg}")
 
+    views = build_views(feed_cfgs, state, now_oslo)
+
     # Krymp per-kilde-tak til siden er under budsjett (LLM-fetchere har
     # størrelsesgrenser). Antall saker kuttes før ingresser droppes.
     for cap, with_desc in ((None, True), (15, True), (10, True), (5, True),
                            (10, False), (5, False)):
-        page = render(feed_cfgs, state, now_oslo, cap, with_desc)
+        page = render(feed_cfgs, state, views, now_oslo, cap, with_desc)
         size = len(page.encode())
         if size <= SIZE_BUDGET:
             break

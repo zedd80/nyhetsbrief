@@ -9,20 +9,22 @@
 #   strip_suffix — valgfritt, fjernes fra slutten av titler
 #   descriptions — valgfritt, false = aldri ingress for denne kilden
 #
-# Nivå-inndeling (2026-07-22): primær max=20, sekundær max=10, nisje max=5.
-# Rekkefølgen speiler nivåene — viktigst øverst, siden LLM-fetchere
-# trunkerer store sider nedenfra. Krympelogikken i generate.py bruker
-# min(feedens max, globalt tak).
+# Linjefordeling (revidert 2026-07-23 etter innspill fra konsumenten,
+# Claude Chat): 20/10/5 per kilde. Rekkefølgen er prioritet — viktigst
+# øverst, siden LLM-fetchere trunkerer store sider nedenfra. NB: NRK
+# toppsaker står FØR NRK siste nytt med vilje — ved NRK-duplikat på tvers
+# av de to feedene vinner den første i fila (salienssignalet bevares).
 #
-# Alle URL-er verifisert fungerende fra hjemme-IP 2026-07-05 (nye kilder
-# 2026-07-22).
+# Reuters ble vurdert 2026-07-23 og utgår: all offentlig Reuters-RSS er
+# nedlagt (DNS-feil/404/401). Regjeringen.no ble også vurdert: RSS-endepunktet
+# ignorerer departementsfilter (kun ufiltrert hele-regjeringen-feed) — droppet.
 
-# ─── Primær (max 20) ──────────────────────────────────────────────────
+# ─── Nivå 20 ──────────────────────────────────────────────────────────
 
 [[feeds]]
 name = "NRK toppsaker"
 url = "https://www.nrk.no/toppsaker.rss"
-max = 20
+max = 10
 
 [[feeds]]
 name = "NRK siste nytt"
@@ -30,8 +32,8 @@ url = "https://www.nrk.no/nyheter/siste.rss"
 max = 20
 
 [[feeds]]
-name = "VG"
-url = "https://www.vg.no/rss/feed"
+name = "Aftenposten"
+url = "https://www.aftenposten.no/rss"
 max = 20
 
 [[feeds]]
@@ -41,31 +43,21 @@ max = 20
 
 # CNNs RSS er død (siste sak april 2023) — erstattet med Guardian + NYT.
 [[feeds]]
-name = "The Guardian World"
-url = "https://www.theguardian.com/world/rss"
-max = 20
-
-[[feeds]]
 name = "New York Times World"
 url = "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
 max = 20
 
-# AP la ned offentlig RSS (apnews.com/index.rss krever betalt avtale,
-# verifisert 2026-07-22) — hentes via Google News-proxy som Finansavisen.
-# Wire-bredde (~100 saker/døgn), men kun titler; AP-titler er heldigvis
-# hele, faktatunge setninger.
+# 20 for å dekke blindsoner (Midtøsten/Global South) — bevisst valg 2026-07-23.
 [[feeds]]
-name = "AP (via Google News)"
-url = "https://news.google.com/rss/search?q=site:apnews.com%20when:1d&hl=en-US&gl=US&ceid=US:en"
-strip_suffix = " - AP News"
+name = "Al Jazeera"
+url = "https://www.aljazeera.com/xml/rss/all.xml"
 max = 20
-descriptions = false  # Google News-sammendrag er bare lenke-HTML
 
-# ─── Sekundær (max 10) ────────────────────────────────────────────────
+# ─── Nivå 10 ──────────────────────────────────────────────────────────
 
 [[feeds]]
-name = "Aftenposten"
-url = "https://www.aftenposten.no/rss"
+name = "VG"
+url = "https://www.vg.no/rss/feed"
 max = 10
 
 [[feeds]]
@@ -73,10 +65,26 @@ name = "E24"
 url = "https://e24.no/rss"
 max = 10
 
-# Merk: /feed/ og /rss/ gir 404 — det er /feed/rss/ som virker.
 [[feeds]]
-name = "Kyiv Independent"
-url = "https://kyivindependent.com/feed/rss/"
+name = "Dagens Næringsliv"
+url = "https://services.dn.no/api/feed/rss/"
+max = 10
+
+# AP la ned offentlig RSS (apnews.com/index.rss krever betalt avtale,
+# verifisert 2026-07-22) — hentes via Google News-proxy. BEHOLDT 2026-07-23
+# som eneste wire-kilde (Reuters-RSS er nedlagt) tross to kjente svakheter:
+# base64-lenker via news.google.com kan ikke følges av Claude Chats fetcher,
+# og enkelte rader er seksjonssider, ikke saker. Titler bærer verdien.
+[[feeds]]
+name = "AP (via Google News)"
+url = "https://news.google.com/rss/search?q=site:apnews.com%20when:1d&hl=en-US&gl=US&ceid=US:en"
+strip_suffix = " - AP News"
+max = 10
+descriptions = false  # Google News-sammendrag er bare lenke-HTML
+
+[[feeds]]
+name = "The Guardian World"
+url = "https://www.theguardian.com/world/rss"
 max = 10
 
 # Høyre-motvekt i kvalitetssjiktet (mot Guardian/NYT); åpen feed med
@@ -91,9 +99,10 @@ name = "Financial Times"
 url = "https://www.ft.com/rss/home"
 max = 10
 
+# Merk: /feed/ og /rss/ gir 404 — det er /feed/rss/ som virker.
 [[feeds]]
-name = "Al Jazeera"
-url = "https://www.aljazeera.com/xml/rss/all.xml"
+name = "Kyiv Independent"
+url = "https://kyivindependent.com/feed/rss/"
 max = 10
 
 [[feeds]]
@@ -106,12 +115,25 @@ name = "Deutsche Welle"
 url = "https://rss.dw.com/rdf/rss-en-world"
 max = 10
 
-# ─── Nisje/lokal (max 5) ──────────────────────────────────────────────
+[[feeds]]
+name = "Die Welt"
+url = "https://www.welt.de/feeds/latest.rss"
+max = 10
 
 [[feeds]]
-name = "Dagens Næringsliv"
-url = "https://services.dn.no/api/feed/rss/"
-max = 5
+name = "South China Morning Post"
+url = "https://www.scmp.com/rss/91/feed"
+max = 10
+
+# NHK Worlds engelske feed er død (timeout, verifisert 2026-07-05).
+# Japansk utenriksfeed brukes i stedet — konsumenten er en LLM som
+# leser japansk og oversetter i briefingen.
+[[feeds]]
+name = "NHK (japansk, utenriks)"
+url = "https://www3.nhk.or.jp/rss/news/cat6.xml"
+max = 10
+
+# ─── Nivå 5 ───────────────────────────────────────────────────────────
 
 [[feeds]]
 name = "Nettavisen"
@@ -123,23 +145,17 @@ name = "Nordstrands Blad"
 url = "https://www.noblad.no/service/rich-rss"
 max = 5
 
-# Finansavisen har ingen åpen RSS (verifisert 2026-07-05) — hentes via
-# Google News-proxy. Lenkene går via news.google.com.
+# Norsk juridisk nyhetstjeneste. Lavt volum (1–3 saker/døgn) er normalt.
 [[feeds]]
-name = "Finansavisen (via Google News)"
-url = "https://news.google.com/rss/search?q=site:finansavisen.no&hl=no&gl=NO&ceid=NO:no"
-strip_suffix = " - Finansavisen"
-max = 5
-descriptions = false  # Google News-sammendrag er bare lenke-HTML
-
-[[feeds]]
-name = "Die Welt"
-url = "https://www.welt.de/feeds/latest.rss"
+name = "Rett24"
+url = "https://rett24.no/rss"
 max = 5
 
+# nve.no har ingen egen RSS — pressemeldinger publiseres via NTB-presserommet
+# (verifisert 2026-07-23). Svært lavt volum; ∅ (tom i vinduet) er normalt.
 [[feeds]]
-name = "South China Morning Post"
-url = "https://www.scmp.com/rss/91/feed"
+name = "NVE"
+url = "https://kommunikasjon.ntb.no/rss/releases/latest?publisherId=89280"
 max = 5
 
 [[feeds]]
@@ -147,10 +163,5 @@ name = "Fox News World"
 url = "https://moxie.foxnews.com/google-publisher/world.xml"
 max = 5
 
-# NHK Worlds engelske feed er død (timeout, verifisert 2026-07-05).
-# Japansk utenriksfeed brukes i stedet — konsumenten er en LLM som
-# leser japansk og oversetter i briefingen.
-[[feeds]]
-name = "NHK (japansk, utenriks)"
-url = "https://www3.nhk.or.jp/rss/news/cat6.xml"
-max = 5
+# Finansavisen (Google News-proxy) FJERNET 2026-07-23: base64-lenker kan
+# ikke følges av konsumenten, og E24 + DN dekker økonomifeltet.
