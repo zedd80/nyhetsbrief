@@ -40,6 +40,7 @@ TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"\s+")
 DATED_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.html$")
 NRK_ID_RE = re.compile(r"1\.\d{7,}")
+SCHIBSTED_ID_RE = re.compile(r"//([^/]+)/.*?/i/([a-z0-9]{6,8})/")
 NON_WORD_RE = re.compile(r"[\W\d_]+")
 
 
@@ -61,14 +62,18 @@ def clean_summary(raw: str, title: str) -> str:
 
 def url_key(link: str) -> tuple:
     """Dedup-nøkkel for en lenke. Query og fragment strippes helt (utm_*,
-    at_medium o.l.); NRK-artikler identifiseres på den stabile IDen
-    «1.NNNNNNNN» alene — samme sak republiseres under ulike seksjonsstier
-    (/nyheter/, /norge/, /buskerud/, …)."""
+    at_medium o.l.). Stabile artikkel-IDer brukes der de finnes: NRK
+    («1.NNNNNNNN» — samme sak republiseres under ulike seksjonsstier) og
+    Schibsted-avisene (Aftenposten/VG/E24: «/i/<id>/<slug>» — slugen
+    skiftes når tittelen oppdateres, IDen består)."""
     low = link.casefold()
     if "nrk.no" in low:
         m = NRK_ID_RE.search(low)
         if m:
             return ("nrk", m.group(0))
+    m = SCHIBSTED_ID_RE.search(low)
+    if m:  # Schibsted (/i/<id>/<slug>): slug skiftes ved tittelendring
+        return ("schibsted", m.group(1), m.group(2))
     return ("url", low.split("#")[0].split("?")[0].rstrip("/"))
 
 
