@@ -18,6 +18,13 @@ henter pekersiden (ufarlig om cachet — dagens lenke står der uansett) og
 deretter dagens daterte URL, som aldri kan være cachet. Daterte filer eldre
 enn 10 dager slettes automatisk.
 
+**full.json (lokal LLM):** I tillegg skrives `full.json` med *alle* saker i
+48-timersvinduet — uten per-kilde-tak og uten størrelsesbudsjett. Taket på
+index.html gjør at mange kilder ikke dekker et helt døgn (målt 11.10.2026:
+VG 6 t, Guardian 2,5 t); full.json leses av en lokal modell på atlantis med
+stor kontekst og trenger ikke den begrensningen. Samme felt som siden
+(ts i Europe/Oslo, title, url, desc) + per-kilde `ok`/`last_success`.
+
 ## Drift (isengard)
 
 - **Legge til/fjerne kilde:** rediger `feeds.toml` (GitHubs web-UI eller be

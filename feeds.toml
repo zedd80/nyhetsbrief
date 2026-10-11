@@ -8,6 +8,11 @@
 #   max          — valgfritt, maks saker på siden (default 25)
 #   strip_suffix — valgfritt, fjernes fra slutten av titler
 #   descriptions — valgfritt, false = aldri ingress for denne kilden
+#   min_title_words — valgfritt, dropp saker med kortere tittel (hubsider)
+#   skip_title_re   — valgfritt, dropp saker der tittelen matcher regex
+#
+# max gjelder bare index.html (Claude Chat). full.json har alle saker i
+# 48-timersvinduet uten tak — den leses av lokal-brief på atlantis.
 #
 # Linjefordeling (revidert 2026-07-23 etter innspill fra konsumenten,
 # Claude Chat): 20/10/5 per kilde. Rekkefølgen er prioritet — viktigst
@@ -81,6 +86,10 @@ url = "https://news.google.com/rss/search?q=site:apnews.com%20when:1d&hl=en-US&g
 strip_suffix = " - AP News"
 max = 10
 descriptions = false  # Google News-sammendrag er bare lenke-HTML
+# Tema-/hubsider («College football», «China», «MLB | Latest News …») får
+# stadig nytt tidsstempel og fylte hele taket — ekte overskrifter er lengre.
+min_title_words = 5
+skip_title_re = '\||News & Stats$'
 
 [[feeds]]
 name = "The Guardian World"

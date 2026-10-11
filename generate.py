@@ -107,6 +107,18 @@ def dedupe_source(items: list) -> list:
     return out
 
 
+def title_filtered(cfg: dict, title: str) -> bool:
+    """Kilde-spesifikt søppelfilter (min_title_words / skip_title_re i
+    feeds.toml). AP via Google News blander inn tema-/hubsider («College
+    football», «China»); de får stadig nytt tidsstempel og fylte ellers
+    hele nyeste-først-taket."""
+    n = cfg.get("min_title_words")
+    if n and len(title.split()) < n:
+        return True
+    pat = cfg.get("skip_title_re")
+    return bool(pat and re.search(pat, title))
+
+
 def build_views(feed_cfgs: list, state: dict, now_oslo: datetime) -> dict:
     """Vindusfiltrert, deduplisert sakliste per kilde (ubegrenset — taket
     settes i render). Dedup på tvers av kilder gjøres KUN på NRK-ID:
@@ -119,7 +131,7 @@ def build_views(feed_cfgs: list, state: dict, now_oslo: datetime) -> dict:
     seen_nrk = set()
     for cfg in feed_cfgs:
         items = [it for it in state.get(cfg["name"], {}).get("items", [])
-                 if it["ts"] >= cutoff]
+                 if it["ts"] >= cutoff and not title_filtered(cfg, it["title"])]
         deduped = []
         for it in dedupe_source(items):
             key = url_key(it["link"])
@@ -297,6 +309,29 @@ henting, men ingen saker i tidsvinduet — normalt for lavvolum-kilder
 """
 
 
+def write_full_json(out_dir: Path, feed_cfgs: list, state: dict, views: dict,
+                    now_oslo: datetime) -> None:
+    """Ubegrenset variant for lokal LLM (lokal-brief på atlantis): alle saker
+    i 48-timersvinduet, uten per-kilde-tak og størrelsesbudsjett. index.html
+    er uendret — den er fortsatt Claude Chats grunnlag og må holdes liten."""
+    feeds = []
+    for cfg in feed_cfgs:
+        st = state.get(cfg["name"], {})
+        feeds.append({
+            "name": cfg["name"],
+            "ok": not st.get("last_error"),
+            "last_success": st.get("last_success"),
+            "items": [{"ts": fmt_oslo(it["ts"]), "title": it["title"],
+                       "url": it["link"], "desc": it.get("desc", "")}
+                      for it in views.get(cfg["name"], [])],
+        })
+    data = {"generated": now_oslo.isoformat(timespec="seconds"),
+            "window_hours": WINDOW_HOURS, "feeds": feeds}
+    tmp = out_dir / "full.tmp"
+    tmp.write_text(json.dumps(data, ensure_ascii=False))
+    os.replace(tmp, out_dir / "full.json")
+
+
 def write_dated_copies(out_dir: Path, page: str, now_oslo: datetime) -> None:
     """Datert kopi av siden + pekerside (dagens.html), mot fetch-cache.
 
@@ -391,6 +426,7 @@ def main() -> int:
     tmp.write_text(page)
     os.replace(tmp, args.out)
     write_dated_copies(args.out.parent, page, now_oslo)
+    write_full_json(args.out.parent, feed_cfgs, state, views, now_oslo)
     return 0
 
 
